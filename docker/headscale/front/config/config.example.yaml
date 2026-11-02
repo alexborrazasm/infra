@@ -1,0 +1,25 @@
+server:
+  host: "0.0.0.0"
+  port: 3000
+  base_path: "/admin"
+  # Public URL of Headplane, without the base_path
+  base_url: "https://ts.example.com"
+  # 32 characters: openssl rand -base64 24
+  cookie_secret: "COOKIE_SECRET"
+  cookie_secure: true
+  data_path: "/var/lib/headplane"
+
+headscale:
+  # HTTP endpoint of Headscale on the same Docker network (listen_addr there)
+  url: "http://headscale:8080"
+  # Shown in the UI and in the generated tailscale up command
+  public_url: "https://ts.example.com"
+  config_path: "/etc/headscale/config.yaml"
+  dns_records_path: "/etc/headscale/dns_records.json"
+
+integration:
+  docker:
+    enabled: true
+    container_label: "me.tale.headplane.target=headscale"
+    # Through the restricted socket-proxy, never the raw docker.sock
+    socket: "tcp://socket-proxy:2375"

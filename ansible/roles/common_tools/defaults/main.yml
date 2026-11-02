@@ -1,0 +1,26 @@
+---
+common_tools_packages:
+  - neovim
+  - htop
+  - fastfetch
+  - bat
+  - tmux
+  - traceroute
+  - tcpdump
+  - net-tools # netstat, ifconfig, route, arp - same package name on apt/dnf
+  - tree
+
+# Same tool, different package name per distro - merged into
+# common_tools_packages in tasks/main.yml.
+common_tools_packages_by_os_family:
+  Debian:
+    - bind9-dnsutils # nslookup, dig, host
+    - mtr-tiny
+    - netcat-openbsd
+  RedHat:
+    - bind-utils # nslookup, dig, host
+    - mtr
+    - nmap-ncat
+
+# Off on hosts that set their own PS1.
+common_tools_color_prompt: true

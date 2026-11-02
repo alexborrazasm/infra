@@ -1,0 +1,9 @@
+---
+# Step 2, as your user with your key (check first with `ssh alex@ip`):
+#   uv run ansible-playbook playbooks/ssh.yml -u alex --check --diff
+#   uv run ansible-playbook playbooks/ssh.yml -u alex
+- name: Harden sshd
+  hosts: vps
+  become: true
+  roles:
+    - ssh

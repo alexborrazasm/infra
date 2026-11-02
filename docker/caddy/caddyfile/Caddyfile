@@ -1,0 +1,53 @@
+{
+	auto_https disable_redirects
+}
+
+(remove-headers) {
+	header -Via
+	header -X-Powered-By
+	header >Server "EXAMPLE"
+
+	handle_errors {
+		header Server "EXAMPLE"
+	}
+}
+
+# Manual redirect to remove caddy headers
+http:// {
+	import remove-headers
+	redir https://{host}{uri} permanent
+}
+
+example.com {
+	import remove-headers
+	log {
+		output file /log/example.com.log
+	}
+
+	respond "SOMETHING"
+}
+
+*.example.com {
+	import remove-headers
+	log {
+		output file /log/wildcard.example.com.log
+	}
+
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+	}
+
+	@sub1 host app.example.com
+	handle @sub1 {
+		respond "HELLO"
+	}
+
+	@proxy host proxy.example.com
+	handle @proxy {
+		reverse_proxy * http://service:8080
+	}
+
+	handle {
+		abort
+	}
+}

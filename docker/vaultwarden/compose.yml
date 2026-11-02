@@ -1,0 +1,15 @@
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    user: 900:900
+    env_file: .vaultwarden.env
+    volumes:
+      - ./vw-data/:/data/
+    networks:
+      - web
+    restart: unless-stopped
+
+networks:
+  web:
+    external: true

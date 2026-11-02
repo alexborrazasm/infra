@@ -1,0 +1,4 @@
+---
+# 0 means no swap. Only applied when no swap is active; changing the size
+# later requires removing /swapfile (swapoff + rm + fstab line) by hand.
+swap_mb: 4096

@@ -1,0 +1,4 @@
+---
+# Tailnet name (MagicDNS); public SSH is closed in the provider firewall
+ansible_host: cloud
+tailscale_exit_node: true

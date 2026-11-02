@@ -1,0 +1,59 @@
+---
+# ansible.builtin.package dispatches to apt/dnf/etc based on facts. On
+# AlmaLinux, EPEL must already be enabled (see tasks/epel.yml).
+- name: Enable EPEL where needed
+  ansible.builtin.import_tasks: epel.yml
+
+- name: Install common CLI tools (RHEL family)
+  # install_weak_deps: false - neovim recommends tree-sitter-cli, which in
+  # turn recommends nodejs (+npm+docs). None of that is used, so without
+  # this every host ends up with a whole Node.js runtime as a side effect.
+  when: ansible_facts['os_family'] == "RedHat"
+  ansible.builtin.dnf:
+    name: "{{ common_tools_packages + (common_tools_packages_by_os_family[ansible_facts['os_family']] | default([])) }}"
+    state: present
+    update_cache: true
+    install_weak_deps: false
+
+- name: Install common CLI tools (non-RHEL)
+  when: ansible_facts['os_family'] != "RedHat"
+  ansible.builtin.package:
+    name: "{{ common_tools_packages + (common_tools_packages_by_os_family[ansible_facts['os_family']] | default([])) }}"
+    state: present
+    update_cache: true
+
+# zz- prefix: distro scripts like colorls.sh sort after a plain name and
+# would clobber our aliases (e.g. ls). zz- guarantees we load last.
+- name: Deploy the Fedora-style colored bash prompt
+  ansible.builtin.copy:
+    src: bash-color-prompt.sh
+    dest: /etc/profile.d/zz-bash-color-prompt.sh
+    owner: root
+    group: root
+    mode: "0644"
+  when: common_tools_color_prompt | bool
+
+- name: Deploy system-wide shell defaults (editor, aliases)
+  ansible.builtin.copy:
+    src: zz-cli-defaults.sh
+    dest: /etc/profile.d/zz-cli-defaults.sh
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create the system-wide Neovim config dir
+  ansible.builtin.file:
+    path: /etc/xdg/nvim
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy the system-wide Neovim config
+  # $XDG_CONFIG_DIRS/nvim/sysinit.vim - applies to every user on the box.
+  ansible.builtin.copy:
+    src: nvim-sysinit.vim
+    dest: /etc/xdg/nvim/sysinit.vim
+    owner: root
+    group: root
+    mode: "0644"

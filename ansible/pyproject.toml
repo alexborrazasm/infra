@@ -1,0 +1,5 @@
+[project]
+name = "infra-ansible"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["ansible-core>=2.18"]

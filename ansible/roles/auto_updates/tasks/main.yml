@@ -1,0 +1,25 @@
+---
+- name: Install dnf-automatic
+  ansible.builtin.dnf:
+    name: dnf-automatic
+    state: present
+
+- name: Configure dnf-automatic
+  # security only: safe for unattended runs. Use "default" to install
+  # everything. random_sleep spreads the run so mirrors aren't hit at once.
+  ansible.builtin.copy:
+    dest: /etc/dnf/automatic.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [commands]
+      upgrade_type = security
+      apply_updates = yes
+      random_sleep = 3600
+
+- name: Enable the dnf-automatic timer
+  ansible.builtin.systemd:
+    name: dnf-automatic.timer
+    enabled: true
+    state: started

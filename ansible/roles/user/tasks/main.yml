@@ -1,0 +1,33 @@
+---
+- name: Create the admin users
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: wheel
+    append: true
+    shell: /bin/bash
+  loop: "{{ admins }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Authorize the SSH public keys
+  ansible.posix.authorized_key:
+    user: "{{ item.name }}"
+    key: "{{ item.ssh_keys | join('\n') }}"
+    exclusive: true
+  loop: "{{ admins }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Allow passwordless sudo for the admin users
+  # The users have no password (SSH key only), so sudo would have nothing to
+  # ask for.
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/{{ item.name }}"
+    owner: root
+    group: root
+    mode: "0440"
+    content: "{{ item.name }} ALL=(ALL) NOPASSWD:ALL\n"
+    validate: visudo -cf %s
+  loop: "{{ admins }}"
+  loop_control:
+    label: "{{ item.name }}"

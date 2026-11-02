@@ -1,0 +1,15 @@
+---
+# Step 1, once, as root with password:
+#   uv run ansible-playbook playbooks/bootstrap.yml -u root -k
+# Creates the admin user with your key and sudo. Does NOT touch sshd, so if
+# anything goes wrong, root with password still works.
+- name: Bootstrap the admin user
+  hosts: vps
+  become: true
+  pre_tasks:
+    - name: Set the hostname to the inventory name
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+  roles:
+    - user
+    - swap

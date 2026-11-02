@@ -1,0 +1,6 @@
+---
+- name: Unattended security updates
+  hosts: vps
+  become: true
+  roles:
+    - auto_updates

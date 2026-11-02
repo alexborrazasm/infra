@@ -1,0 +1,23 @@
+---
+- name: Harden sshd
+  # 00- because sshd uses the FIRST value it sees and drop-ins are read in
+  # alphabetical order: cloud images ship 50-cloud-init.conf with
+  # PasswordAuthentication yes, which would beat a 99-.
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-hardening.conf
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      PermitRootLogin no
+      PubkeyAuthentication yes
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      AuthenticationMethods publickey
+      AllowUsers {{ admins | map(attribute="name") | join(" ") }}
+      MaxAuthTries 3
+      LoginGraceTime 30
+      X11Forwarding no
+      AllowAgentForwarding no
+    validate: sshd -t -f %s
+  notify: Reload sshd

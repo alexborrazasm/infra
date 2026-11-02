@@ -1,0 +1,14 @@
+services:
+  mqtt:
+    image: eclipse-mosquitto:latest
+    container_name: mqtt
+    user: 900:900
+    ports:
+      - "8883:8883"
+    volumes:
+      - ./config:/mosquitto/config
+      - ./data:/mosquitto/data
+      - ./log:/mosquitto/log
+      - ./certificates/:/certificates:ro
+    restart: unless-stopped
+

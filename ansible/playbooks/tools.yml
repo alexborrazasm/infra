@@ -1,0 +1,6 @@
+---
+- name: Install common tools
+  hosts: vps
+  become: true
+  roles:
+    - common_tools

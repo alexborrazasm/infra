@@ -1,0 +1,29 @@
+services:
+  caddy:
+    container_name: caddy
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: 900:900
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .caddy.env
+    environment:
+      - TZ=Europe/Madrid
+    volumes:
+      - ./caddyfile:/etc/caddy
+      - ./srv:/srv
+      - ./data:/data
+      - ./config:/config
+      - ./log:/log
+    networks:
+      - web
+
+    restart: unless-stopped
+
+networks:
+  web:
+    name: web
+    driver: bridge

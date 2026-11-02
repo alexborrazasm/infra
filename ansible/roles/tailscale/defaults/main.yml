@@ -1,0 +1,17 @@
+---
+# Public URL of the Headscale server, from the environment (ansible/.env):
+#   TS_LOGIN_SERVER=https://ts.example.com
+tailscale_login_server: "{{ lookup('ansible.builtin.env', 'TS_LOGIN_SERVER') }}"
+
+# Pre-auth key used to join the tailnet, only needed the first time. Pass it
+# as an environment variable (ansible/.env):
+#   TS_AUTHKEY=hskey-auth-...
+tailscale_authkey: "{{ lookup('ansible.builtin.env', 'TS_AUTHKEY') }}"
+
+# Don't let the tailnet DNS rewrite the server's resolv.conf. Headscale
+# itself runs here, so the host must resolve its own domain without it.
+tailscale_accept_dns: false
+
+# Offer this host as an exit node (needs IP forwarding, set below, and the
+# route approved in Headscale).
+tailscale_exit_node: false

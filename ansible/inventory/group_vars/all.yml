@@ -1,0 +1,7 @@
+---
+# Admin users: created by the bootstrap with sudo, and the only ones allowed
+# to SSH in. Public keys are not secret, so they live here inline.
+admins:
+  - name: alex
+    ssh_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBkMYwuNdqWYMYnW/xb5cqJWmn+0+vkwfJ7iLJjtAag0 alexborrazasm@gmail.com"

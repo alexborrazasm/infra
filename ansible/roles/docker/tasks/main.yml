@@ -1,0 +1,100 @@
+---
+# RedHat-family only for now. Add a Debian branch (like common_tools) if a
+# Debian docker host shows up.
+- name: Fail on unsupported OS family
+  ansible.builtin.fail:
+    msg: "roles/docker only supports RedHat-family hosts right now"
+  when: ansible_facts['os_family'] != "RedHat"
+
+- name: Create the docker group with a fixed GID
+  # Pinned so it's identical on every docker host. Created before the
+  # package install, which reuses an existing "docker" group instead of
+  # letting the postinst script pick whatever GID is next free.
+  ansible.builtin.group:
+    name: docker
+    gid: 900
+    system: true
+
+- name: Add the Docker CE repository
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/rhel/docker-ce.repo
+    dest: /etc/yum.repos.d/docker-ce.repo
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install Docker
+  ansible.builtin.dnf:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: Check whether the netfilter addrtype module is present
+  # Some AlmaLinux cloud images miss kernel-modules-extra - Docker's bridge
+  # networking needs xt_addrtype for its NAT rules.
+  ansible.builtin.command: modprobe xt_addrtype
+  register: _xt_addrtype_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Install kernel-modules-extra for the running kernel
+  ansible.builtin.dnf:
+    name: "kernel-modules-extra-{{ ansible_facts['kernel'] }}"
+    state: present
+  when: _xt_addrtype_check.rc != 0
+  register: _kmod_extra_installed
+
+- name: Load xt_addrtype now (don't wait for a reboot)
+  ansible.builtin.command: modprobe xt_addrtype
+  when: _kmod_extra_installed is changed
+  changed_when: true
+
+- name: Load xt_addrtype on every future boot too
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/docker-netfilter.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      xt_addrtype
+
+- name: Enable and start Docker
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Create the docker service user
+  # Same UID:GID (900:900) on every docker host. Owns every compose stack.
+  # No SSH login of its own (not in AllowUsers, no keys): admins reach it
+  # with `sd` (alias below).
+  ansible.builtin.user:
+    name: docker
+    uid: 900
+    group: docker
+    system: true
+    shell: /bin/bash
+    home: /srv/docker
+    create_home: true
+
+- name: Restrict /srv/docker to the docker user
+  ansible.builtin.file:
+    path: /srv/docker
+    state: directory
+    owner: docker
+    group: docker
+    mode: "0750"
+
+- name: Deploy the sd (sudo su - docker) shell alias
+  ansible.builtin.copy:
+    src: zz-docker-alias.sh
+    dest: /etc/profile.d/zz-docker-alias.sh
+    owner: root
+    group: root
+    mode: "0644"

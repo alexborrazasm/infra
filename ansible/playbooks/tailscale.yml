@@ -1,0 +1,6 @@
+---
+- name: Install Tailscale and join the tailnet
+  hosts: vps
+  become: true
+  roles:
+    - tailscale

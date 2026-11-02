@@ -1,0 +1,10 @@
+---
+# Everything, idempotent. After the first run, root login is closed, so
+# always run as the admin user:
+#   uv run ansible-playbook playbooks/site.yml -u alex --check --diff
+- ansible.builtin.import_playbook: bootstrap.yml
+- ansible.builtin.import_playbook: ssh.yml
+- ansible.builtin.import_playbook: tools.yml
+- ansible.builtin.import_playbook: auto_updates.yml
+- ansible.builtin.import_playbook: docker.yml
+- ansible.builtin.import_playbook: tailscale.yml

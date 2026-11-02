@@ -1,0 +1,70 @@
+services:
+  headscale:
+    image: headscale/headscale:latest
+    container_name: headscale
+    user: 900:900
+    labels:
+      # This label is absolutely necessary to help Headplane find Headscale.
+      me.tale.headplane.target: headscale
+    volumes:
+      - './back/config:/etc/headscale'
+      - './back/data/lib:/var/lib/headscale'
+      - './back/data/run:/var/run/headscale'
+      - './back/config/dns_records.json:/etc/headscale/dns_records.json'
+
+    command: serve
+    ports:
+      - "3478:3478/udp"
+    networks:
+      - web
+    restart: unless-stopped
+
+  headplane:
+    image: ghcr.io/tale/headplane:latest
+    container_name: headplane
+    user: 900:900
+    environment:
+      - DOCKER_API_VERSION=1.44
+    volumes:
+      - './front/config/config.yaml:/etc/headplane/config.yaml'
+      - './back/config/config.yaml:/etc/headscale/config.yaml'
+      - './front/data:/var/lib/headplane'
+      - './back/config/dns_records.json:/etc/headscale/dns_records.json'
+    depends_on:
+      - headscale
+      - socket-proxy
+    networks:
+      - web
+      - socket
+    restart: unless-stopped
+
+  # Only container with the Docker socket. Headplane talks to it over TCP
+  # (integration.docker.socket: tcp://socket-proxy:2375). Allowed: list
+  # containers and restart one, nothing else (no create/exec/inspect).
+  socket-proxy:
+    image: wollomatic/socket-proxy:1
+    container_name: headscale-socket-proxy
+    # 65534 = nobody, 900 = docker group (can read the socket)
+    user: 65534:900
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - '-listenip=0.0.0.0'
+      - '-allowfrom=headplane'
+      - '-allowGET=(/v[0-9.]+)?/(containers/json|version)'
+      - '-allowPOST=(/v[0-9.]+)?/containers/[a-zA-Z0-9_.-]+/restart'
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock:ro'
+    networks:
+      - socket
+    restart: unless-stopped
+
+networks:
+  web:
+    external: true
+  # No route out: only headplane and socket-proxy are on it.
+  socket:
+    internal: true
