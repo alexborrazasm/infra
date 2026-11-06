@@ -5,6 +5,10 @@
 (remove-headers) {
 	header -Via
 	header -X-Powered-By
+	header -X-Generator
+	header -X-AspNet-Version
+	header -X-AspNetMvc-Version
+	header -X-Runtime
 	header >Server "EXAMPLE"
 
 	handle_errors {
