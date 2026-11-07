@@ -1,0 +1,9 @@
+---
+# Bot credentials, from the environment (ansible/.env). Without them the
+# role installs everything but notifications are skipped.
+telegram_bot_token: "{{ lookup('ansible.builtin.env', 'TELEGRAM_BOT_TOKEN') }}"
+telegram_chat_id: "{{ lookup('ansible.builtin.env', 'TELEGRAM_CHAT_ID') }}"
+telegram_env_file: /etc/telegram.env
+
+# Timezone for the date stamped on every message
+telegram_timezone: Europe/Madrid

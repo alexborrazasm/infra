@@ -1,0 +1,31 @@
+---
+# Where the restic repository lives. Same disk as the data: it covers
+# mistakes and bad updates, not losing the disk. Point it at another volume
+# if the provider offers one.
+backup_repo: /srv/backup/restic
+
+# What to back up. Every stack under it is stopped during the backup.
+backup_source: /srv/docker
+
+# Folders under backup_source that are not worth keeping (logs).
+backup_exclude:
+  - "/srv/docker/*/log"
+
+# Every night at this time (systemd OnCalendar, with its own timezone).
+# Override per host in inventory/host_vars/<host>.yml to stagger them.
+backup_time: "05:00:00"
+backup_timezone: Europe/Madrid
+
+# Telegram: failures and low disk space always notify. Verbose mode also sends
+# a message after every successful backup. Set it per host.
+backup_notify_verbose: false
+backup_disk_warn_percent: 80
+
+backup_keep_daily: 7
+backup_keep_weekly: 4
+backup_keep_monthly: 6
+
+# Repository password, from the environment (ansible/.env). Keep a copy in
+# your password manager: without it the backups cannot be restored.
+backup_password: "{{ lookup('ansible.builtin.env', 'RESTIC_PASSWORD') }}"
+backup_password_file: /etc/restic/password

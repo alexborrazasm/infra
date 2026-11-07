@@ -1,0 +1,6 @@
+---
+- name: Nightly restic backup of the Docker data
+  hosts: vps
+  become: true
+  roles:
+    - backup

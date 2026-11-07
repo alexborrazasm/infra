@@ -10,7 +10,7 @@ The **services** are plain `docker compose` stacks, deployed by hand.
 ansible/
   inventory/            hosts.yml (who exists), host_vars/<host>.yml (how to reach it, per-host vars)
   playbooks/            site.yml runs everything; each piece also runs alone
-  roles/                user, ssh, swap, common_tools, auto_updates, docker, tailscale
+  roles/                user, ssh, swap, common_tools, auto_updates, docker, tailscale, telegram, backup
   .env.example          secrets and site values read by Ansible (copy to .env, not committed)
 docker/                 compose stacks: caddy, headscale, mqtt, vaultwarden
 scripts/                ca-new.sh / ca-sign.sh, a private CA for TLS
@@ -80,6 +80,34 @@ nothing to `source`. Copy `ansible/.env.example` and fill in:
 
 - `TS_LOGIN_SERVER`: public URL of Headscale.
 - `TS_AUTHKEY`: pre-auth key, only to join a new node.
+- `RESTIC_PASSWORD`: password of the backup repository (keep a copy elsewhere).
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`: bot for notifications (optional).
+
+## Backups
+
+Every night (05:00, set per host with `backup_time` in `host_vars/<host>.yml`) a
+systemd timer runs `docker-backup`: it stops every stack under `/srv/docker`,
+copies the data to a local restic repository (`/srv/backup/restic`), starts the
+stacks again and prunes old snapshots. Stopping the containers keeps databases
+consistent without per-service dumps, so a new service needs nothing extra.
+
+```bash
+sudo systemctl start docker-backup.service   # backup now (stops the stacks, like the nightly one)
+sudo docker-restore snapshots
+sudo docker-restore restore latest /srv/docker/vaultwarden   # into /srv/backup/restore/<date>
+```
+
+Notifications go through a Telegram bot (`TELEGRAM_BOT_TOKEN` and
+`TELEGRAM_CHAT_ID` in `ansible/.env`). A failed backup always notifies, quoting
+the last error line, and so does a disk over `backup_disk_warn_percent` (80).
+Verbose mode, enabled per host with `backup_notify_verbose: true` in
+`host_vars/<host>.yml`, sends "Backup Started" and edits that same message into
+the result. Without the credentials nothing is sent.
+
+Restores never overwrite live data: copy back what you need. The repository
+password is `RESTIC_PASSWORD` in `ansible/.env`: keep a copy in your password
+manager. The repository is on the same disk, so it covers mistakes and bad
+updates, not losing the server: copy it elsewhere (`restic copy`) for that.
 
 ## Services (`docker/`)
 

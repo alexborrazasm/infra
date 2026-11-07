@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# Nightly restic backup of {{ backup_source }}.
+# Stops every compose stack, backs up, starts them again (also if the backup
+# fails). Compose starts services in dependency order.
+#   docker-backup     always stops the stacks: databases are only consistent
+#                     in a copy taken while they are down
+#
+# Telegram: a failure always notifies, with the last error line. Verbose mode
+# sends "Backup Started" and edits that same message into the result.
+set -euo pipefail
+
+[ "$#" -eq 0 ] || { echo "docker-backup takes no options: it always stops the stacks" >&2; exit 2; }
+
+export RESTIC_REPOSITORY="{{ backup_repo }}"
+export RESTIC_PASSWORD_FILE="{{ backup_password_file }}"
+# systemd services have no $HOME, so restic needs an explicit cache dir
+export RESTIC_CACHE_DIR="/var/cache/restic"
+SRC="{{ backup_source }}"
+verbose={{ 1 if backup_notify_verbose | bool else 0 }}
+
+# Keep a copy of the output: the failure message quotes the last error.
+LOG=/run/docker-backup.log
+umask 077
+: > "$LOG"
+exec > >(tee -a "$LOG") 2>&1
+
+# Never let a failed message break the backup. Prints the message id.
+notify() { /usr/local/bin/notify-telegram "$@" || true; }
+esc() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+
+declare -A running   # project dir -> services that were running
+msg_id=""
+
+compose() { local d="$1"; shift; docker compose --project-directory "$d" "$@"; }
+
+start_all() {
+  for d in "${!running[@]}"; do
+    echo "starting $(basename "$d"): ${running[$d]}"
+    # shellcheck disable=SC2086
+    compose "$d" start ${running[$d]} >/dev/null
+  done
+  running=()
+}
+
+# Runs on every exit: bring the stacks back first, then report a failure.
+finish() {
+  local rc=$?
+  trap - EXIT
+  start_all || true
+  if [ "$rc" -ne 0 ]; then
+    sleep 0.5   # let tee flush the log
+    local err
+    err="$(grep -iE 'fatal|error|unable|cannot|failed' "$LOG" | tail -n 2 | cut -c1-300 || true)"
+    [ -n "$err" ] || err="$(tail -n 2 "$LOG" | cut -c1-300)"
+    # A new message pings the phone, an edited one does not: replace the
+    # "Started" message with the failure.
+    [ -z "$msg_id" ] || notify --delete "$msg_id" >/dev/null
+    notify "❌ Backup Failed" "$(printf 'Exit code: %s\n%s' "$rc" "$(printf '%s' "$err" | esc)")" >/dev/null
+  fi
+  exit "$rc"
+}
+trap finish EXIT
+
+exec 9>/run/docker-backup.lock
+flock -n 9 || { echo "another backup is running"; exit 1; }
+
+for f in "$SRC"/*/compose.yml "$SRC"/*/compose.yaml; do
+  [ -f "$f" ] || continue
+  d="$(dirname "$f")"
+  svcs="$(compose "$d" ps --status running --services | tr '\n' ' ')"
+  [ -n "${svcs// /}" ] && running["$d"]="$svcs"
+done
+
+if [ "$verbose" = 1 ]; then
+  names="$(for d in "${!running[@]}"; do basename "$d"; done | sort | paste -sd, - | sed 's/,/, /g')"
+  msg_id="$(notify "🚀 Backup Started" "Stacks: ${names:-none running}")"
+fi
+
+for d in "${!running[@]}"; do
+  echo "stopping $(basename "$d")"
+  compose "$d" stop -t 30 >/dev/null
+done
+
+echo "backing up $SRC"
+restic backup --one-file-system --compression auto --tag docker \
+{% for e in backup_exclude %}
+  --exclude "{{ e }}" \
+{% endfor %}
+  "$SRC"
+
+start_all
+
+echo "removing old snapshots"
+restic forget --prune --keep-daily {{ backup_keep_daily }} --keep-weekly {{ backup_keep_weekly }} --keep-monthly {{ backup_keep_monthly }}
+restic check
+
+read -r used avail < <(df --output=pcent,avail -h "{{ backup_repo }}" | awk 'NR==2 {gsub("%","",$1); print $1, $2}')
+if [ "$used" -ge {{ backup_disk_warn_percent }} ]; then
+  notify "⚠️ Low Disk Space" "$(printf 'Disk: %s%% used, %s free\nThreshold: {{ backup_disk_warn_percent }}%%' "$used" "$avail")" >/dev/null
+fi
+if [ "$verbose" = 1 ]; then
+  data="$(restic stats latest --mode restore-size --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["total_size"])' | numfmt --to=iec-i --suffix=B)"
+  count="$(restic snapshots --json | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
+  repo="$(du -sh "{{ backup_repo }}" | cut -f1)"
+  word=snapshots; [ "$count" = 1 ] && word=snapshot
+  summary="$(printf 'Data: %s\nRepository: %s (%s %s)\nDisk: %s%% used, %s free\nDuration: %ss' "$data" "$repo" "$count" "$word" "$used" "$avail" "$SECONDS")"
+  if [ -n "$msg_id" ]; then
+    notify --edit "$msg_id" "✅ Backup Successful" "$summary" >/dev/null
+  else
+    notify "✅ Backup Successful" "$summary" >/dev/null
+  fi
+fi
+echo "done"

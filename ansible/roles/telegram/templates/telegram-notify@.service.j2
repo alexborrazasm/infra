@@ -1,0 +1,6 @@
+[Unit]
+Description=Telegram notification: %i failed
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/notify-telegram "❌ Service Failed" "Unit: %i\nCheck: journalctl -u %i"

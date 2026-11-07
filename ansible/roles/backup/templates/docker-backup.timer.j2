@@ -1,0 +1,9 @@
+[Unit]
+Description=Nightly restic backup of {{ backup_source }}
+
+[Timer]
+OnCalendar=*-*-* {{ backup_time }} {{ backup_timezone }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

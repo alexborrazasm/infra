@@ -8,3 +8,4 @@
 - ansible.builtin.import_playbook: auto_updates.yml
 - ansible.builtin.import_playbook: docker.yml
 - ansible.builtin.import_playbook: tailscale.yml
+- ansible.builtin.import_playbook: backup.yml

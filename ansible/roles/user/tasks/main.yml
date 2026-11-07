@@ -31,3 +31,14 @@
   loop: "{{ admins }}"
   loop_control:
     label: "{{ item.name }}"
+
+- name: Add /usr/local to sudo's PATH
+  # AlmaLinux's secure_path leaves it out, so `sudo my-script` would not find
+  # scripts installed in /usr/local/bin (e.g. docker-restore).
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/00-secure-path
+    owner: root
+    group: root
+    mode: "0440"
+    content: "Defaults secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin\n"
+    validate: visudo -cf %s

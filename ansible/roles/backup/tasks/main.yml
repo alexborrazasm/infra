@@ -1,0 +1,74 @@
+---
+- name: Check the repository password is set
+  ansible.builtin.assert:
+    that: backup_password | length > 0
+    fail_msg: "Set RESTIC_PASSWORD in ansible/.env"
+    quiet: true
+
+- name: Install restic
+  # From EPEL, enabled by the common_tools role
+  ansible.builtin.dnf:
+    name: restic
+    state: present
+
+- name: Create the restic config and repository directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - "{{ backup_password_file | dirname }}"
+    - "{{ backup_repo | dirname }}"
+
+- name: Store the repository password
+  ansible.builtin.copy:
+    content: "{{ backup_password }}\n"
+    dest: "{{ backup_password_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Initialise the repository
+  ansible.builtin.command: restic init
+  environment:
+    RESTIC_REPOSITORY: "{{ backup_repo }}"
+    RESTIC_PASSWORD_FILE: "{{ backup_password_file }}"
+  args:
+    creates: "{{ backup_repo }}/config"
+
+- name: Install the backup and restore scripts
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/usr/local/bin/{{ item }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - docker-backup
+    - docker-restore
+
+- name: Install the systemd service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - docker-backup.service
+    - docker-backup.timer
+  register: _backup_units
+
+- name: Reload systemd units
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: _backup_units is changed
+
+- name: Enable the nightly backup
+  ansible.builtin.systemd:
+    name: docker-backup.timer
+    enabled: true
+    state: started

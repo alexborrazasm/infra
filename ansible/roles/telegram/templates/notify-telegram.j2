@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Send, edit or delete a Telegram message through the bot.
+#   notify-telegram [--edit ID] "<title>" ["<summary>"]   prints the message id
+#   notify-telegram --delete ID
+#
+# Layout:
+#   <b>Title</b>
+#   Host: <host>
+#   Timestamp: HH:MM DD/MM/YYYY
+#
+#   Summary:
+#   <summary>     (shown as a copyable code block)
+#
+# The title is HTML (<b> works). The summary is plain text inside a <pre>
+# block, so escape & < > in it; a literal \n is a line break. Exits 0 without
+# sending when the bot is not configured. NOTIFY_DRY_RUN=1 prints the message
+# instead of sending it.
+#
+# Editing a message does not ping the phone; a new message does.
+set -euo pipefail
+
+env_file="{{ telegram_env_file }}"
+[ -r "$env_file" ] || { echo "telegram not configured, skipping" >&2; exit 0; }
+# shellcheck disable=SC1090
+. "$env_file"
+if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+  echo "telegram not configured, skipping" >&2
+  exit 0
+fi
+
+# The token goes in through stdin so it never shows in the process list.
+api() {
+  local method="$1"; shift
+  curl -fsS -m 20 -K - "$@" <<CONF
+url = "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}"
+CONF
+}
+
+edit_id=""
+case "${1:-}" in
+  --delete)
+    api deleteMessage -o /dev/null \
+      --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+      --data-urlencode "message_id=${2:?usage: notify-telegram --delete ID}"
+    exit 0
+    ;;
+  --edit)
+    edit_id="${2:?usage: notify-telegram --edit ID \"<title>\" [\"<summary>\"]}"
+    shift 2
+    ;;
+esac
+
+title="${1:-}"
+summary="${2:-}"
+[ -n "$title" ] || { echo "usage: notify-telegram [--edit ID] \"<title>\" [\"<summary>\"]" >&2; exit 1; }
+summary="${summary//\\n/$'\n'}"
+
+msg="<b>${title}</b>"$'\n'"<b>Host:</b> $(hostname -s)"$'\n'"<b>Timestamp:</b> $(TZ={{ telegram_timezone }} date '+%H:%M %d/%m/%Y')"
+if [ -n "$summary" ]; then
+  msg+=$'\n\n'"<b>Summary:</b>"$'\n'"<pre>${summary}</pre>"
+fi
+
+if [ -n "${NOTIFY_DRY_RUN:-}" ]; then
+  printf '%s\n' "$msg"
+  exit 0
+fi
+
+if [ -n "$edit_id" ]; then
+  resp="$(api editMessageText \
+    --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+    --data-urlencode "message_id=$edit_id" \
+    --data-urlencode "parse_mode=HTML" \
+    --data-urlencode "text=$msg")"
+else
+  resp="$(api sendMessage \
+    --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+    --data-urlencode "parse_mode=HTML" \
+    --data-urlencode "text=$msg")"
+fi
+printf '%s' "$resp" | python3 -c 'import json,sys; print(json.load(sys.stdin)["result"]["message_id"])'

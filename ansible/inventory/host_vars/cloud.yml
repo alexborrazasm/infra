@@ -2,3 +2,9 @@
 # Tailnet name (MagicDNS); public SSH is closed in the provider firewall
 ansible_host: cloud
 tailscale_exit_node: true
+
+# Nightly backup time (stagger it across hosts)
+backup_time: "05:00:00"
+
+# Also send a Telegram message after every successful backup
+backup_notify_verbose: true

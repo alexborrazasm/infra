@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Look at and restore backups. Restores go to a separate folder, never over
+# the live data: copy back what you need.
+#   docker-restore snapshots
+#   docker-restore restore [snapshot] [path]    snapshot: id or "latest" (default)
+#                                               path: e.g. {{ backup_source }}/vaultwarden
+set -euo pipefail
+
+[ "$(id -u)" = 0 ] || { echo "run it with sudo" >&2; exit 1; }
+
+export RESTIC_REPOSITORY="{{ backup_repo }}"
+export RESTIC_PASSWORD_FILE="{{ backup_password_file }}"
+# systemd services have no $HOME, so restic needs an explicit cache dir
+export RESTIC_CACHE_DIR="/var/cache/restic"
+
+case "${1:-}" in
+  snapshots)
+    restic snapshots
+    ;;
+  restore)
+    snap="${2:-latest}"
+    target="/srv/backup/restore/$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$target"
+    if [ -n "${3:-}" ]; then
+      restic restore "$snap" --target "$target" --include "$3"
+    else
+      restic restore "$snap" --target "$target"
+    fi
+    echo "restored to $target"
+    ;;
+  *)
+    sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//' >&2
+    exit 1
+    ;;
+esac
