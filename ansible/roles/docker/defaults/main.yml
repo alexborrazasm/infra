@@ -3,3 +3,8 @@
 # tailnet IP (e.g. AdGuard DNS on 100.64.0.1), which only exists once tailscaled
 # has brought it up. Leave it off on hosts without Tailscale.
 docker_after_tailscale: false
+
+# Put the admins of this host in the docker group (so they can run docker
+# without sudo), and take them out when they are locked or removed. The group
+# is root-equivalent, but admins already have passwordless sudo.
+docker_add_admins: true

@@ -14,7 +14,7 @@
       PasswordAuthentication no
       KbdInteractiveAuthentication no
       AuthenticationMethods publickey
-      AllowUsers {{ admins | map(attribute="name") | join(" ") }}
+      AllowUsers {{ ssh_allowed_users }}
       MaxAuthTries 3
       LoginGraceTime 30
       X11Forwarding no

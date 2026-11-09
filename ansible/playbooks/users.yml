@@ -1,0 +1,11 @@
+---
+# Only the admin users and SSH access, without the rest of site.yml. Run it per
+# group or host, after looking at what changes:
+#   uv run --env-file .env ansible-playbook playbooks/users.yml --limit fs_prod --check --diff
+#   uv run --env-file .env ansible-playbook playbooks/users.yml --limit fs_prod
+- name: Admin users and SSH access
+  hosts: all
+  become: true
+  roles:
+    - user
+    - ssh

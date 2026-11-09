@@ -1,7 +1,24 @@
 ---
-# Admin users: created by the bootstrap with sudo, and the only ones allowed
-# to SSH in. Public keys are not secret, so they live here inline.
+# Admins: everyone who is an admin anywhere, each with their public SSH keys
+# (not secret, so inline). Keys live here once.
+#
+# Usually nothing else goes here: whether someone is present or locked on a host
+# comes from admin_access below. Optional per admin:
+#   state: locked        suspended on every host, even where admin_access names
+#                        them (account kept, unusable)
+#   state: absent        delete the account on every host (offboarding step 2)
+#   remove_home: true    with absent: also delete the home folder (irreversible)
+# Leave the entry in the list as the record of the removal.
 admins:
-  - name: alex
+  alex:
     ssh_keys:
       - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBkMYwuNdqWYMYnW/xb5cqJWmn+0+vkwfJ7iLJjtAag0 alexborrazasm@gmail.com"
+
+# Who can enter which machines: inventory group (see hosts.yml) -> admin names.
+# `all` is every host. A host gets the names of `all` plus those of every group
+# it is in. An admin not named for a host has no account there, or a locked one
+# if they used to; so taking a name out of a list revokes the access on the next
+# run.
+admin_access:
+  all: [alex]
+  vps: []

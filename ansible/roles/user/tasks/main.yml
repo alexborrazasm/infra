@@ -1,22 +1,61 @@
 ---
+# Admin users. Each entry in `admins_here` has a state:
+#   present (default)  account, SSH keys and sudo; allowed in sshd
+#   locked             account kept but unusable: sessions killed, password
+#                      locked, account expired, keys and sudo removed
+#   absent             account deleted (the home folder is kept unless the
+#                      entry has remove_home: true)
+- name: Look up the users that already exist
+  ansible.builtin.getent:
+    database: passwd
+
+- name: Check every admin appears once on this host
+  # The lists of several groups are summed, and identical entries are merged. A
+  # name left over twice means two groups disagree about the same person.
+  vars:
+    _names: "{{ admins_here | map(attribute='name') | list }}"
+  ansible.builtin.assert:
+    that: _names | length == _names | unique | length
+    fail_msg: >-
+      An admin is listed twice on {{ inventory_hostname }} with different data
+      (see the admins_* lists of its groups): {{ _names | sort | join(', ') }}
+    quiet: true
+
+- name: Never lock or remove the user Ansible is connected as
+  vars:
+    _connecting_user: "{{ ansible_facts['env']['SUDO_USER'] | default(ansible_facts['user_id']) }}"
+    _leaving: "{{ admins_here | rejectattr('state', 'undefined') | rejectattr('state', 'equalto', 'present') | map(attribute='name') | list }}"
+  ansible.builtin.assert:
+    that: _connecting_user not in _leaving
+    fail_msg: >-
+      {{ _connecting_user }} is marked locked/absent but Ansible is connected as
+      that user. Connect as another admin first.
+    quiet: true
+
 - name: Create the admin users
   ansible.builtin.user:
     name: "{{ item.name }}"
     groups: wheel
     append: true
     shell: /bin/bash
-  loop: "{{ admins }}"
+  loop: "{{ admins_here }}"
   loop_control:
     label: "{{ item.name }}"
+  when: item.state | default('present') == 'present'
 
 - name: Authorize the SSH public keys
+  # In --check mode a user that does not exist yet has no home to put keys in,
+  # so the preview skips it instead of failing.
   ansible.posix.authorized_key:
     user: "{{ item.name }}"
     key: "{{ item.ssh_keys | join('\n') }}"
     exclusive: true
-  loop: "{{ admins }}"
+  loop: "{{ admins_here }}"
   loop_control:
     label: "{{ item.name }}"
+  when:
+    - item.state | default('present') == 'present'
+    - not ansible_check_mode or item.name in ansible_facts['getent_passwd']
 
 - name: Allow passwordless sudo for the admin users
   # The users have no password (SSH key only), so sudo would have nothing to
@@ -28,7 +67,58 @@
     mode: "0440"
     content: "{{ item.name }} ALL=(ALL) NOPASSWD:ALL\n"
     validate: visudo -cf %s
-  loop: "{{ admins }}"
+  loop: "{{ admins_here }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.state | default('present') == 'present'
+
+# Offboarding: everything below only acts on accounts that still exist, so a
+# repeated run is a no-op and a typo never creates a user.
+- name: Take away sudo from the users leaving
+  ansible.builtin.file:
+    path: "/etc/sudoers.d/{{ item.name }}"
+    state: absent
+  loop: "{{ admins_here | rejectattr('state', 'undefined') | rejectattr('state', 'equalto', 'present') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Remove the SSH keys of the users leaving
+  ansible.builtin.file:
+    path: "{{ ansible_facts['getent_passwd'][item.name][4] }}/.ssh/authorized_keys"
+    state: absent
+  loop: "{{ admins_here | rejectattr('state', 'undefined') | rejectattr('state', 'equalto', 'present') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name in ansible_facts['getent_passwd']
+
+- name: Close the open sessions of the users leaving
+  ansible.builtin.command: "pkill -KILL -u {{ item.name }}"
+  register: _pkill
+  # 1 = no process matched
+  failed_when: _pkill.rc not in [0, 1]
+  changed_when: _pkill.rc == 0
+  loop: "{{ admins_here | rejectattr('state', 'undefined') | rejectattr('state', 'equalto', 'present') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name in ansible_facts['getent_passwd']
+
+- name: Lock the accounts marked as locked
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    password_lock: true
+    expires: 0
+  loop: "{{ admins_here | selectattr('state', 'defined') | selectattr('state', 'equalto', 'locked') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name in ansible_facts['getent_passwd']
+
+- name: Delete the accounts marked as absent
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    state: absent
+    remove: "{{ item.remove_home | default(false) | bool }}"
+    force: true
+  loop: "{{ admins_here | selectattr('state', 'defined') | selectattr('state', 'equalto', 'absent') | list }}"
   loop_control:
     label: "{{ item.name }}"
 

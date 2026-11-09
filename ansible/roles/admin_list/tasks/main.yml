@@ -1,0 +1,52 @@
+---
+# Works out `admins_here`: the admins of this host, each with the state it
+# should have. The user and ssh roles depend on this one.
+#
+# Everyone in `admins` (inventory/group_vars/all.yml) is a known admin. On a
+# given host:
+#   - present   named in admin_access under `all` or under a group of this host
+#   - locked    in `admins` but not named for this host (an account that does not
+#               exist stays that way; one that does is locked, not deleted), or
+#               state: locked in `admins`, even where it is named
+#   - absent    state: absent in `admins`, on every host
+- name: Check the states in admins are known
+  vars:
+    _bad: "{{ admins | dict2items | selectattr('value.state', 'defined') | rejectattr('value.state', 'in', ['present', 'locked', 'absent']) | map(attribute='key') | list }}"
+  ansible.builtin.assert:
+    that: _bad | length == 0
+    fail_msg: "Unknown state in admins for: {{ _bad | join(', ') }} (use present, locked or absent)"
+    quiet: true
+
+- name: Check admin_access only names known admins
+  vars:
+    _named: "{{ admin_access | dict2items | selectattr('key', 'in', ['all'] + group_names) | map(attribute='value') | flatten | unique | list }}"
+    _unknown: "{{ _named | difference(admins.keys() | list) }}"
+  ansible.builtin.assert:
+    that: _unknown | length == 0
+    fail_msg: "admin_access names people that are not in `admins`: {{ _unknown | join(', ') }}"
+    quiet: true
+
+- name: Start from an empty list
+  ansible.builtin.set_fact:
+    admins_here: []
+
+- name: Give each admin the state this host calls for
+  vars:
+    _allowed: "{{ admin_access | dict2items | selectattr('key', 'in', ['all'] + group_names) | map(attribute='value') | flatten | unique | list }}"
+  ansible.builtin.set_fact:
+    admins_here: >-
+      {{ admins_here + [ {'name': item.key} | combine(item.value)
+         | combine({'state': ('absent' if item.value.state | default('present') == 'absent'
+                              else ('locked' if item.value.state | default('present') == 'locked'
+                              else ('present' if item.key in _allowed else 'locked')))}) ] }}
+  loop: "{{ admins | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Check someone can still get in
+  ansible.builtin.assert:
+    that: admins_here | selectattr('state', 'equalto', 'present') | list | length > 0
+    fail_msg: >-
+      No admin has access to {{ inventory_hostname }} (groups: {{ group_names | join(', ') or 'none' }}).
+      Name someone in admin_access under `all` or under one of those groups.
+    quiet: true

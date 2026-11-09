@@ -133,3 +133,40 @@
     owner: root
     group: root
     mode: "0644"
+
+- name: Look up the users and the docker group
+  ansible.builtin.getent:
+    database: "{{ item }}"
+  loop:
+    - passwd
+    - group
+  when: docker_add_admins | bool
+
+- name: Add the admins of this host to the docker group
+  # Only accounts that already exist: the user role creates them, and `user`
+  # would create a missing one without keys or sudo.
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: docker
+    append: true
+  loop: "{{ admins_here | selectattr('state', 'equalto', 'present') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - docker_add_admins | bool
+    - item.name in ansible_facts['getent_passwd']
+
+- name: Take the locked admins out of the docker group
+  # gpasswd exits 3 when the user was not a member
+  ansible.builtin.command: "gpasswd -d {{ item.name }} docker"
+  register: _gpasswd
+  failed_when: _gpasswd.rc not in [0, 3]
+  changed_when: _gpasswd.rc == 0
+  loop: "{{ admins_here | selectattr('state', 'equalto', 'locked') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - docker_add_admins | bool
+    - item.name in ansible_facts['getent_passwd']
+    - item.name in (ansible_facts['getent_group']['docker'][2] | split(','))
+

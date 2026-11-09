@@ -73,6 +73,70 @@ uv run --env-file .env ansible-playbook playbooks/site.yml
 If the tailnet is down you can't reach the server: keep the provider's web
 console at hand, or open 22 again for a moment.
 
+## Users
+
+Admins are people with an account, sudo and an `AllowUsers` entry in sshd; nobody
+else can SSH in. Two things in `ansible/inventory/group_vars/all.yml` describe them:
+
+```yaml
+# Everyone who is an admin anywhere. Keys live here once.
+admins:
+  alex:
+    ssh_keys: ["ssh-ed25519 AAAA... alex@laptop"]
+  maria:
+    ssh_keys: ["ssh-ed25519 AAAA... maria@laptop"]
+
+# Who can enter which machines: inventory group -> names. `all` is every host.
+admin_access:
+  all: [alex]
+  vps: []                # the group that exists today; nobody extra for now
+  # prod: [maria]        # the usual ones, once they exist in hosts.yml
+  # test: [maria, pedro]
+```
+
+`admin_access` is for the typical split of machines into groups and who can enter each
+(prod, test, internal tools...): a person who works on production is named under
+`prod`, one who only touches test under `test`, and nobody gets accounts on machines
+they have no business on.
+
+A host gets the names of `all` plus those of every group it belongs to in
+`hosts.yml` (`vps` today; `prod`, `test`... as you add them). To give someone access to a group of
+machines, name them under that group; to take it away, remove the name.
+
+| for a host, an admin is... | when | what happens |
+|---|---|---|
+| **present** | named for it (`all` or one of its groups) | account, SSH keys, sudo, allowed in sshd |
+| **locked** | in `admins` but not named for it | an existing account is kept but made unusable: sessions killed, password locked, account expired, keys and sudo removed, out of `AllowUsers`. If it never existed, nothing happens |
+| **locked** (suspended) | `state: locked` in `admins` | same as above, but even where `admin_access` still names them: a quick way to suspend someone everywhere without touching the lists |
+| **absent** | `state: absent` in `admins` | on every host: sessions killed, account deleted. The home folder stays unless `remove_home: true` (irreversible) |
+
+So revoking access is editing one list, and it only locks: setting the name back
+restores it from the keys in `admins`. Deleting a person for good is a second,
+explicit step, and the entry stays in `admins` as the record:
+
+```yaml
+admins:
+  pedro:
+    state: absent
+    remove_home: true
+```
+
+Day to day:
+
+```bash
+cd ansible
+uv run ansible-playbook playbooks/admins.yml                  # who can enter which host (no SSH)
+uv run --env-file .env ansible-playbook playbooks/users.yml --limit vps --check --diff
+uv run --env-file .env ansible-playbook playbooks/users.yml --limit vps
+```
+
+`users.yml` applies only users and sshd, to the hosts you `--limit`; `site.yml` does
+it too, with everything else. The run stops, changing nothing, if `admin_access`
+names someone who is not in `admins`, if a host would have no admin at all, or if it
+would lock or remove the user Ansible is connected as (connect as another admin
+first). When someone knew a shared secret (a Headscale API key, a host's restic
+password), rotate it too.
+
 ## Secrets for Ansible
 
 `ansible/.env` is not committed; `uv run --env-file .env` loads it, so there is

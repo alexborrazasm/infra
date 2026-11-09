@@ -1,0 +1,7 @@
+---
+# Who sshd lets in: the admins_here whose state is present (the default). Locked or
+# absent admins_here are left out, which also closes SSH for them.
+ssh_allowed_users: >-
+  {{ (admins_here | selectattr('state', 'undefined') | list
+      + admins_here | selectattr('state', 'defined') | selectattr('state', 'equalto', 'present') | list)
+     | map(attribute='name') | join(' ') }}

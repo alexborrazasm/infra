@@ -1,0 +1,19 @@
+---
+# Read-only report: who can enter which host. It only reads the inventory, no
+# SSH connection is made.
+#   uv run ansible-playbook playbooks/admins.yml
+#   uv run ansible-playbook playbooks/admins.yml --limit fs_prod
+- name: Who can enter where
+  hosts: all
+  gather_facts: false
+  connection: local
+  roles:
+    - admin_list
+  tasks:
+    - name: Access per host
+      run_once: true
+      ansible.builtin.debug:
+        msg: >-
+          {{ '%-14s' | format(item) }}
+          {% for a in hostvars[item].admins_here %}{{ a.name }}={{ a.state }}{{ '  ' }}{% endfor %}
+      loop: "{{ ansible_play_hosts }}"
