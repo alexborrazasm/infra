@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Manage Mosquitto users. Put it next to compose.yml.
+# Manage Mosquitto users. Put it next to compose.yaml.
 #   ./mqtt-passwd.sh add <user>       asks for the password
 #   ./mqtt-passwd.sh add <user> -g    generates a random one and prints it
 #   ./mqtt-passwd.sh del <user>
 #   ./mqtt-passwd.sh list
 # Runs mosquitto_passwd inside the container, so the file ends up owned by
-# the container user (compose.yml "user:"). Restart mqtt afterwards.
+# the container user (compose.yaml "user:"). Restart mqtt afterwards.
 set -euo pipefail
 SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 cd "$(dirname "$SELF")"

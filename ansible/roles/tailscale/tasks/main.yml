@@ -26,6 +26,10 @@
     - net.ipv6.conf.all.forwarding
   when: tailscale_exit_node | bool
 
+- name: Tune the network card for exit-node traffic
+  ansible.builtin.import_tasks: gro.yml
+  when: tailscale_exit_node | bool
+
 - name: Enable and start tailscaled
   ansible.builtin.systemd:
     name: tailscaled

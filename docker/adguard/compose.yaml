@@ -1,0 +1,27 @@
+services:
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: adguard
+    # Host networking, so DNS queries from the tailnet arrive as local traffic.
+    # With published ports they are forwarded to the container and, because this
+    # host is a Tailscale exit node, masqueraded: AdGuard then sees the Docker
+    # gateway instead of each client. For the same reason AdGuard must be told
+    # where to listen (conf/AdGuardHome.yaml), otherwise it would take ports 80
+    # and 53 everywhere: dns.bind_hosts is the tailnet IP (DNS for the tailnet),
+    # http.address is the docker0 gateway (172.17.0.1:3080), where Caddy reaches
+    # the web UI as host.docker.internal. The UI has no other way in.
+    network_mode: host
+    # AdGuard insists on running as root at first launch (it checks it can bind
+    # the privileged ports). So: root, but with every capability dropped except
+    # the two it needs, and no way to gain more. The data folders belong to root.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./work:/opt/adguardhome/work
+      - ./conf:/opt/adguardhome/conf
+    restart: unless-stopped

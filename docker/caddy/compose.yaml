@@ -1,0 +1,39 @@
+services:
+  caddy:
+    container_name: caddy
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: 900:900
+    ports:
+      - "80:80"
+      # 443 is split by address: the public IPs serve the public sites; the tailnet
+      # IP goes to port 8443 of the container, which only serves tailnet services
+      # (pri.example.com). They cannot share 0.0.0.0:443: Docker will not publish a
+      # port twice. The addresses come from .env.
+      - "${PUBLIC_IPV4}:443:443"
+      - "[${PUBLIC_IPV6}]:443:443"
+      - "${TAILNET_IP}:443:8443"
+    extra_hosts:
+      # Reaches the host through the Docker bridge (AdGuard runs in host mode and
+      # listens on docker0's address for its web UI)
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .caddy.env
+    environment:
+      - TZ=Europe/Madrid
+    volumes:
+      - ./caddyfile:/etc/caddy
+      - ./srv:/srv
+      - ./data:/data
+      - ./config:/config
+      - ./log:/log
+    networks:
+      - web
+
+    restart: unless-stopped
+
+networks:
+  web:
+    name: web
+    driver: bridge

@@ -1,0 +1,5 @@
+---
+# Start Docker after tailscaled. Needed where containers publish ports on the
+# tailnet IP (e.g. AdGuard DNS on 100.64.0.1), which only exists once tailscaled
+# has brought it up. Leave it off on hosts without Tailscale.
+docker_after_tailscale: false

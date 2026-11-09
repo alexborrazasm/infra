@@ -3,7 +3,7 @@
 #   ./headscale-apikey.sh          expires in 90d
 #   ./headscale-apikey.sh 30d      custom expiration
 # The key is shown once: save it in your password manager. Put it next to
-# compose.yml.
+# compose.yaml.
 set -euo pipefail
 cd "$(dirname "$0")"
 

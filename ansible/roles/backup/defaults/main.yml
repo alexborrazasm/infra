@@ -25,7 +25,11 @@ backup_keep_daily: 7
 backup_keep_weekly: 4
 backup_keep_monthly: 6
 
-# Repository password, from the environment (ansible/.env). Keep a copy in
-# your password manager: without it the backups cannot be restored.
-backup_password: "{{ lookup('ansible.builtin.env', 'RESTIC_PASSWORD') }}"
+# Repository password. Name of the variable in ansible/.env that holds it, set
+# per host in inventory/host_vars/<host>.yml (no default, on purpose):
+#   backup_password_env: RESTIC_PASSWORD_CLOUD
+# Keep a copy in your password manager: without it the backups cannot be
+# restored.
+backup_password_env: ""
+backup_password: "{{ lookup('ansible.builtin.env', backup_password_env) if backup_password_env | length > 0 else '' }}"
 backup_password_file: /etc/restic/password

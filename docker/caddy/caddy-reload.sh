@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Format the Caddyfile and reload Caddy without downtime. Put it next to
-# compose.yml. If the config is invalid, reload fails and Caddy keeps
+# compose.yaml. If the config is invalid, reload fails and Caddy keeps
 # running with the previous one.
 set -euo pipefail
 cd "$(dirname "$0")"

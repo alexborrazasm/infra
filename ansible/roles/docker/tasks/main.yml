@@ -64,6 +64,41 @@
     content: |
       xt_addrtype
 
+- name: Ensure the docker.service drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: docker_after_tailscale | bool
+
+- name: Start Docker after tailscaled
+  # Ordering only (After=, not Wants=): it does not pull tailscaled in, and
+  # systemd ignores it if the unit is missing or disabled.
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/after-tailscale.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      After=tailscaled.service
+  register: _docker_after_ts
+  when: docker_after_tailscale | bool
+
+- name: Do not order Docker after tailscaled
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d/after-tailscale.conf
+    state: absent
+  register: _docker_after_ts_removed
+  when: not (docker_after_tailscale | bool)
+
+- name: Reload systemd units
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: _docker_after_ts is changed or _docker_after_ts_removed is changed
+
 - name: Enable and start Docker
   ansible.builtin.systemd:
     name: docker

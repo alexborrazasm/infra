@@ -55,3 +55,26 @@ example.com {
 		abort
 	}
 }
+
+# Tailnet-only services. Container port 8443 is reached only through the tailnet IP (see
+# compose.yaml) and *.pri.example.com is a wildcard DNS record (DNS only) at the tailnet IP,
+# so nothing here is reachable from the internet.
+*.pri.example.com:8443 {
+	import remove-headers
+	log {
+		output file /log/pri.example.com.log
+	}
+
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+	}
+
+	@dns host dns.pri.example.com
+	handle @dns {
+		reverse_proxy http://host.docker.internal:3080
+	}
+
+	handle {
+		abort
+	}
+}

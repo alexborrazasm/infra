@@ -15,3 +15,7 @@ tailscale_accept_dns: false
 # Offer this host as an exit node (needs IP forwarding, set below, and the
 # route approved in Headscale).
 tailscale_exit_node: false
+
+# Interface to tune for UDP GRO forwarding (exit nodes). Defaults to the one
+# holding the default route, so it follows the provider (eth0, ens3...).
+tailscale_gro_interface: "{{ ansible_facts['default_ipv4']['interface'] }}"

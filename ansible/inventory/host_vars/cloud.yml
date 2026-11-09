@@ -6,5 +6,12 @@ tailscale_exit_node: true
 # Nightly backup time (stagger it across hosts)
 backup_time: "05:00:00"
 
+# Variable in ansible/.env that holds this host's restic repository password
+backup_password_env: RESTIC_PASSWORD_CLOUD
+
 # Also send a Telegram message after every successful backup
 backup_notify_verbose: true
+
+# Containers here publish ports on the tailnet IP (AdGuard DNS), so Docker must
+# start after tailscaled
+docker_after_tailscale: true

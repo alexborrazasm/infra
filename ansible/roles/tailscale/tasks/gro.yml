@@ -1,0 +1,43 @@
+---
+# Tailscale warns "UDP GRO forwarding is suboptimally configured" on exit
+# nodes and subnet routers: forwarded UDP is faster with
+# rx-udp-gro-forwarding on and rx-gro-list off. See
+# https://tailscale.com/s/ethtool-config-udp-gro
+- name: Install ethtool
+  ansible.builtin.dnf:
+    name: ethtool
+    state: present
+
+- name: Read the current offload settings
+  ansible.builtin.command: "ethtool -k {{ tailscale_gro_interface }}"
+  register: _gro_current
+  changed_when: false
+  check_mode: false
+
+- name: Enable UDP GRO forwarding now
+  ansible.builtin.command: "ethtool -K {{ tailscale_gro_interface }} rx-udp-gro-forwarding on rx-gro-list off"
+  when: >-
+    'rx-udp-gro-forwarding: off' in _gro_current.stdout
+    or 'rx-gro-list: on' in _gro_current.stdout
+
+- name: Keep it across reboots
+  # ethtool settings are lost on reboot; a oneshot unit re-applies them
+  # before tailscaled starts.
+  ansible.builtin.template:
+    src: tailscale-udp-gro.service.j2
+    dest: /etc/systemd/system/tailscale-udp-gro.service
+    owner: root
+    group: root
+    mode: "0644"
+  register: _gro_unit
+
+- name: Reload systemd units
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: _gro_unit is changed
+
+- name: Enable the UDP GRO unit
+  ansible.builtin.systemd:
+    name: tailscale-udp-gro.service
+    enabled: true
+    state: started

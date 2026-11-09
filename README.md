@@ -12,7 +12,7 @@ ansible/
   playbooks/            site.yml runs everything; each piece also runs alone
   roles/                user, ssh, swap, common_tools, auto_updates, docker, tailscale, telegram, backup
   .env.example          secrets and site values read by Ansible (copy to .env, not committed)
-docker/                 compose stacks: caddy, headscale, mqtt, vaultwarden
+docker/                 compose stacks: caddy, headscale, mqtt, vaultwarden, adguard
 scripts/                ca-new.sh / ca-sign.sh, a private CA for TLS
 ```
 
@@ -23,7 +23,7 @@ scripts/                ca-new.sh / ca-sign.sh, a private CA for TLS
   Per-host switches live there too, e.g. `tailscale_exit_node: true`.
 - **A new piece of setup:** a role in `ansible/roles/`, a playbook in
   `ansible/playbooks/`, and one line importing it from `site.yml`.
-- **A new service:** a folder in `docker/` with its `compose.yml`, deployed by
+- **A new service:** a folder in `docker/` with its `compose.yaml`, deployed by
   hand (see below). Ansible stops at "Docker is ready".
 
 ## IPs, Tailscale and the first run
@@ -80,7 +80,9 @@ nothing to `source`. Copy `ansible/.env.example` and fill in:
 
 - `TS_LOGIN_SERVER`: public URL of Headscale.
 - `TS_AUTHKEY`: pre-auth key, only to join a new node.
-- `RESTIC_PASSWORD`: password of the backup repository (keep a copy elsewhere).
+- `RESTIC_PASSWORD_CLOUD`, etc.: restic repository password of each host. Which
+  variable a host uses is set in its `host_vars` (`backup_password_env`); there is
+  no shared default. Keep a copy elsewhere.
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`: bot for notifications (optional).
 
 ## Backups
@@ -105,7 +107,7 @@ Verbose mode, enabled per host with `backup_notify_verbose: true` in
 the result. Without the credentials nothing is sent.
 
 Restores never overwrite live data: copy back what you need. The repository
-password is `RESTIC_PASSWORD` in `ansible/.env`: keep a copy in your password
+password is the `.env` variable named by `backup_password_env` in the host's `host_vars`: keep a copy in your password
 manager. The repository is on the same disk, so it covers mistakes and bad
 updates, not losing the server: copy it elsewhere (`restic copy`) for that.
 

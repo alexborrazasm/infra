@@ -1,0 +1,13 @@
+[Unit]
+Description=UDP GRO forwarding on {{ tailscale_gro_interface }} for Tailscale
+Wants=network-online.target
+After=network-online.target
+Before=tailscaled.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/ethtool -K {{ tailscale_gro_interface }} rx-udp-gro-forwarding on rx-gro-list off
+
+[Install]
+WantedBy=multi-user.target

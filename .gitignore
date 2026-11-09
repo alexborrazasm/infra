@@ -28,3 +28,8 @@ docker/headscale/front/data/*
 !docker/headscale/front/config/config.example.yaml
 !docker/headscale/back/config/config.example.yaml
 ansible/.env
+docker/adguard/work/*
+!docker/adguard/work/.gitkeep
+docker/adguard/conf/*
+!docker/adguard/conf/.gitkeep
+docker/*/.env

@@ -1,8 +1,16 @@
 ---
+- name: Check the password variable is mapped for this host
+  ansible.builtin.assert:
+    that: backup_password_env | length > 0
+    fail_msg: >-
+      Set backup_password_env in inventory/host_vars/{{ inventory_hostname }}.yml
+      (the name of the variable in ansible/.env that holds this host's restic password)
+    quiet: true
+
 - name: Check the repository password is set
   ansible.builtin.assert:
     that: backup_password | length > 0
-    fail_msg: "Set RESTIC_PASSWORD in ansible/.env"
+    fail_msg: "Set {{ backup_password_env }} in ansible/.env"
     quiet: true
 
 - name: Install restic
